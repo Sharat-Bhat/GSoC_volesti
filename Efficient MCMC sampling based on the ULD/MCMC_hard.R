@@ -2,7 +2,7 @@ library(volesti)
 library(ggplot2)
 library(geometry)
 
-num_dim = 200
+num_dim = 150
 # step_size = 1
 error = 0.001
 
@@ -15,12 +15,12 @@ strong_convex_create <- function()
 	weight_matrix_vector[1] <<- 50*runif(1)+50
 	for(i in 1:num_dim)
 	{
-		weight_matrix_vector[i+1] <<- 200000*runif(1) #- 100000
+		weight_matrix_vector[i+1] <<- 200000*runif(1) - 100000
 		weight_matrix_gradient_vector[i] <<- weight_matrix_vector[i+1]
 	}
 	for(i in 1:num_dim)
 	{
-		weight_matrix_vector[i+num_dim+1] <<- runif(1)
+		weight_matrix_vector[i+num_dim+1] <<- runif(1) + 0.5
 		weight_matrix_gradient_vector[i+num_dim] <<- 2*weight_matrix_vector[i+num_dim+1]
 	}
 	cat("Weight_matrix_vector: \n", weight_matrix_vector, "\n\n")
