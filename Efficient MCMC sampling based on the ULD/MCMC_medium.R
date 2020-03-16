@@ -2,10 +2,13 @@ library(volesti)
 library(ggplot2)
 library(geometry)
 
-num_dim = 100
-error = 0.01
-step_size = 1
-num_points = 400
+# Number of dimensions of the space
+num_dim = 3
+step_size = 0.1
+num_points = 400000
+
+# Vector containing the corresponding coefficients of the evaluate function
+weight_matrix_vector = vector(mode = "numeric", length = 2*num_dim+1)
 
 distance <- function(point1, point2)
 {
@@ -18,82 +21,75 @@ distance <- function(point1, point2)
 	return(ans)
 }
 
-strong_convex <- function(point_vector)
+strong_convex_create <- function()
+{
+	weight_matrix_vector[1] <<- 100*runif(1)+100
+
+	# Extremum lies inside the the cube of edge length 2
+	for(i in 1:num_dim)
+	{
+		weight_matrix_vector[i+1] <<- 200*runif(1) - 100
+	}
+	for(i in 1:num_dim)
+	{
+		weight_matrix_vector[i+num_dim+1] <<- 10*runif(1) + 5
+	}
+	# weight_matrix_vector[3] <<- 0
+	# weight_matrix_vector[num_dim+3] <<- 0
+	weight_matrix_vector[2] <<- 40
+	# weight_matrix_vector[num_dim+2] <<- 0
+	cat("Weight_matrix_vector: \n", weight_matrix_vector, "\n\n")
+	cat("\nMean = ",-weight_matrix_vector[2]/(2*weight_matrix_vector[num_dim+2]), -weight_matrix_vector[num_dim+1]/(2*weight_matrix_vector[2*num_dim+1]), "\n")
+	cat("Standard Deviation = ", 1/sqrt(2*weight_matrix_vector[num_dim+2]), 1/sqrt(2*weight_matrix_vector[num_dim+4]),"\n")
+}
+
+# Evaluates the value of the function at a particular point
+strong_convex_evaluate <- function(point_vector)
 {
 	ans = 0
-	for (coordinate in point_vector)
+	point_matrix_vector <- vector(mode = "numeric", length = 2*num_dim+1)
+	point_matrix_vector[1] = 1
+	for(i in 1:num_dim)
 	{
-		ans = ans + (coordinate)**2/20
+		point_matrix_vector[i+1] = point_vector[i]
 	}
-	ans = exp(ans) + 4
+	for(i in 1:num_dim)
+	{
+		point_matrix_vector[i+1+num_dim] = point_vector[i]**2
+	}
+	for(i in 1:2*num_dim+1)
+	{
+		ans = ans + point_matrix_vector[i]*weight_matrix_vector[i]
+	}
 	return(ans)
 }
 
-prob_density <- function(point_vector)
-{
-	prob_dens = exp(-strong_convex(point_vector))
-	return (prob_dens)
-}
-
-component_of_walk <- function(cumu_freq, value)
-{
-	n = length(cumu_freq)
-	begin = 1
-	end = n
-	mid = as.integer((begin+end)/2)
-	while ((cumu_freq[mid] < value || cumu_freq[mid-1] > value) && begin <= end)
-	{
-		if(cumu_freq[mid] < value)
-		{
-			begin = mid + 1
-		}
-		else if(cumu_freq[mid-1] > value)
-		{
-			end = mid - 1
-		}
-		mid = as.integer((begin+end)/2)
-	}
-	return(2*mid/n -1)
-}
-
+# Marsaglia Method used followed by MCMC Algorithm for Inhomogenous Distribution
 random_point <- function(start_point)
 {
-	n = num_dim - 1
-	num_parts = as.integer(1/error)
-	cumu_freq = vector(mode="numeric", length = 2*num_parts)
-	radius = step_size
-	for (j in 1:(num_dim-2))
+	next_step = vector(mode="numeric", length = num_dim)
+	next_point = vector(mode="numeric", length = num_dim)
+	origin = rep(0, num_dim)
+	# cat(origin, "\n")
+	# for (i in 1: num_dim)
+	# {
+	# 	next_step[i] = rnorm(0, 1)
+	# }
+	next_step = rnorm(num_dim)
+	# cat(next_step, "\n")
+	scaling = step_size / distance(origin, next_step)
+	for(i in 1: num_dim)
 	{
-		cumu = 0
-		for(i in 1:num_parts)
-		{
-			temp = start_point
-			r = as.numeric((num_parts - i)/num_parts)
-			index = (n-1)/2
-			temp[j] = temp[j] + r
-			delta_freq = error*((1-r*r)**index)*prob_density(temp)
-			cumu = cumu + delta_freq
-			cumu_freq[i] = cumu		
-		}
-		for(i in 1:num_parts)
-		{
-			temp = start_point
-			r = as.numeric(i/num_parts)
-			index = (n-1)/2
-			temp[j] = temp[j] + r
-			delta_freq = error*((1-r*r)**index)*prob_density(temp)
-			cumu = cumu + delta_freq
-			cumu_freq[num_parts + i] = cumu
-		}
-		random = runif(1) * cumu
-		x = radius*component_of_walk(cumu_freq, random)
-		start_point[j] = start_point[j] + x
-		radius = (radius**2 - x**2)**0.5
+		next_step[i] = scaling*next_step[i]
+		next_point[i] = start_point[i] + next_step[i]
 	}
-	theta = 2*pi*runif(1)
-	start_point[num_dim-1] = start_point[num_dim-1] + radius*cos(theta)
-	start_point[num_dim] = start_point[num_dim] + radius*sin(theta)
-	return(start_point)
+	transition = exp(-strong_convex_evaluate(next_point)+strong_convex_evaluate(start_point))
+	prob = runif(1)
+	# cat("\n", prob, transition, "\n")
+	if (transition > prob)
+		return(next_point)
+	else
+		return(start_point)
 }
 
 ball_walk <-function(start_point)
@@ -115,36 +111,26 @@ vec = vector("numeric", num_dim)
 for(i in 1:num_dim)
 {
 	vec[i] = runif(1)
+	vec[i] = 0
 }
-
+strong_convex_create()
+cat("Start = ", vec[1], vec[3], "\n")
 random_walk_points = ball_walk(vec)
 displacement = distance(random_walk_points[[1]], random_walk_points[[num_points]])
-cat("Random Walk: \n")
-for(point in random_walk_points)
-{
-	cat(point,"\n")
-}
-
-i1 = as.integer(num_dim*runif(1)) + 1
-i2 = as.integer(num_dim*runif(1)) + 1
-while(i2 == i1)
-{
-	i2 = as.integer(num_dim*runif(1))+1
-}
-cat(i1, i2, "\n")
+cat("End = ", random_walk_points[[num_points]][1], random_walk_points[[num_points]][num_dim], "\n")
 x = vector("numeric", num_points)
 for(i in 1:num_points)
 {
-	x[i] = random_walk_points[[i]][i1]
+	x[i] = random_walk_points[[i]][1]
 }
 y = vector("numeric", num_points)
 for(i in 1:num_points)
 {
-	y[i] = random_walk_points[[i]][i2]
+	y[i] = random_walk_points[[i]][num_dim]
 }
 
 # Plotting them in a graph
 heading = paste("Random Ball Walk\nStep Size = ", step_size," Number of Dimensions = ", num_dim, "Number of Points = ", num_points)
 cat("Displacement = ", displacement, "\n")
-plot(x, y, type = "n", main = heading)
-lines(x, y, type = "o")
+plot(x, y, type = "p", main = heading, col = "red", pch =".")
+# lines(x, y)
